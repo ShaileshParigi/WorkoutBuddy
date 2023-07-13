@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const validator = require("validator");
+const emailExistence = require("email-existence");
+const emailVerify = require("email-verify");
 const Schema = mongoose.Schema;
 
 const userSchema = new Schema({
@@ -15,7 +17,7 @@ const userSchema = new Schema({
   },
 });
 
-//Signup Statics
+// Signup Statics
 userSchema.statics.signup = async function (email, password) {
   if (!email || !password) {
     throw Error("All fields must be filled");
@@ -32,6 +34,45 @@ userSchema.statics.signup = async function (email, password) {
     throw Error("User already exists");
   }
 
+  // Verify email existence using email-existence package
+  const checkEmailExistence = (email) =>
+    new Promise((resolve, reject) => {
+      emailExistence.check(email, (error, response) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(response);
+        }
+      });
+    });
+
+  try {
+    await checkEmailExistence(email);
+  } catch (error) {
+    throw Error("Email does not exist");
+  }
+
+  // Verify email existence using email-verify package
+  const checkEmailVerification = (email) =>
+    new Promise((resolve, reject) => {
+      emailVerify.verify(email, (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+  try {
+    const verificationResult = await checkEmailVerification(email);
+    if (!verificationResult.success) {
+      throw Error("Email verification failed");
+    }
+  } catch (error) {
+    throw Error("Email verification failed");
+  }
+
   const salt = await bcrypt.genSalt(10);
   const hash = await bcrypt.hash(password, salt);
 
@@ -39,7 +80,7 @@ userSchema.statics.signup = async function (email, password) {
   return user;
 };
 
-//Login user
+// Login user
 userSchema.statics.login = async function (email, password) {
   if (!email || !password) {
     throw Error("All fields must be filled");
